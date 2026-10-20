@@ -10,6 +10,16 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: Auth
+    description: Browser authentication endpoints.
+  - name: videos
+    description: Short video feed and interactions
+  - name: profiles
+    description: Creator profiles and follows
+  - name: storage
+    description: Video upload storage
+  - name: Storage
+    description: Object storage upload and serving endpoints.
 paths:
   /healthz:
     get:
@@ -24,6 +34,225 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/user:
+    get:
+      operationId: getCurrentAuthUser
+      tags: [Auth]
+      summary: Get the currently authenticated user
+      responses:
+        "200":
+          description: Authentication state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUserEnvelope"
+  /login:
+    get:
+      operationId: beginBrowserLogin
+      tags: [Auth]
+      summary: Start browser login
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to authentication provider
+  /callback:
+    get:
+      operationId: handleBrowserLoginCallback
+      tags: [Auth]
+      summary: Complete browser login
+      responses:
+        "302":
+          description: Redirect to the application after login
+  /logout:
+    get:
+      operationId: logoutBrowserSession
+      tags: [Auth]
+      summary: End browser session
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect after logout
+  /videos:
+    get:
+      operationId: listVideos
+      tags: [videos]
+      summary: List videos for a feed
+      parameters:
+        - name: feed
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [for-you, following]
+            default: for-you
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Video feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Video"
+    post:
+      operationId: createVideo
+      tags: [videos]
+      summary: Publish a video
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VideoInput"
+      responses:
+        "201":
+          description: Published video
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Video"
+        "401":
+          description: Sign in required
+  /videos/{videoId}/like:
+    post:
+      operationId: toggleVideoLike
+      tags: [videos]
+      summary: Toggle a like on a video
+      parameters:
+        - name: videoId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated like state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikeResult"
+        "401":
+          description: Sign in required
+  /videos/{videoId}/comments:
+    get:
+      operationId: listVideoComments
+      tags: [videos]
+      summary: List comments for a video
+      parameters:
+        - name: videoId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Video comments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Comment"
+    post:
+      operationId: createVideoComment
+      tags: [videos]
+      summary: Add a comment to a video
+      parameters:
+        - name: videoId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommentInput"
+      responses:
+        "201":
+          description: Created comment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "401":
+          description: Sign in required
+  /profiles/{userId}:
+    get:
+      operationId: getProfile
+      tags: [profiles]
+      summary: Get a creator profile
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Creator profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "404":
+          description: Profile not found
+  /profiles/{userId}/follow:
+    post:
+      operationId: toggleFollow
+      tags: [profiles]
+      summary: Follow or unfollow a creator
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated follow state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FollowResult"
+        "401":
+          description: Sign in required
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Request a signed upload URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadUrlRequest"
+      responses:
+        "200":
+          description: Signed upload location
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+        "401":
+          description: Sign in required
 components:
   schemas:
     HealthStatus:
@@ -33,4 +262,106 @@ components:
           type: string
       required:
         - status
+    Video:
+      type: object
+      required: [id, caption, videoUrl, createdAt, creatorId, creatorName, creatorHandle, creatorAvatar, likes, comments, liked, followed]
+      properties:
+        id: { type: integer }
+        caption: { type: string }
+        videoUrl: { type: string }
+        coverUrl: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        creatorId: { type: string }
+        creatorName: { type: string }
+        creatorHandle: { type: string }
+        creatorAvatar: { type: ["string", "null"] }
+        likes: { type: integer }
+        comments: { type: integer }
+        liked: { type: boolean }
+        followed: { type: boolean }
+    VideoInput:
+      type: object
+      required: [caption, videoUrl]
+      properties:
+        caption: { type: string, minLength: 1, maxLength: 300 }
+        videoUrl: { type: string, minLength: 1 }
+        coverUrl: { type: ["string", "null"] }
+    LikeResult:
+      type: object
+      required: [liked, likes]
+      properties:
+        liked: { type: boolean }
+        likes: { type: integer }
+    Comment:
+      type: object
+      required: [id, body, createdAt, userId, userName, userHandle, userAvatar]
+      properties:
+        id: { type: integer }
+        body: { type: string }
+        createdAt: { type: string, format: date-time }
+        userId: { type: string }
+        userName: { type: string }
+        userHandle: { type: string }
+        userAvatar: { type: ["string", "null"] }
+    CommentInput:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 500 }
+    Profile:
+      type: object
+      required: [id, name, handle, followers, following, videos, isFollowing]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        handle: { type: string }
+        avatar: { type: ["string", "null"] }
+        bio: { type: ["string", "null"] }
+        followers: { type: integer }
+        following: { type: integer }
+        videos: { type: array, items: { $ref: "#/components/schemas/Video" } }
+        isFollowing: { type: boolean }
+    FollowResult:
+      type: object
+      required: [following, followers]
+      properties:
+        following: { type: boolean }
+        followers: { type: integer }
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name: { type: string }
+        size: { type: integer }
+        contentType: { type: string }
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath, metadata]
+      properties:
+        uploadURL: { type: string }
+        objectPath: { type: string }
+        metadata:
+          $ref: "#/components/schemas/UploadUrlRequest"
+    AuthUser:
+      type: object
+      required: [id, email, firstName, lastName, profileImageUrl]
+      properties:
+        id: { type: string }
+        email: { type: ["string", "null"], format: email }
+        firstName: { type: ["string", "null"] }
+        lastName: { type: ["string", "null"] }
+        profileImageUrl: { type: ["string", "null"] }
+    AuthUserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          oneOf:
+            - $ref: "#/components/schemas/AuthUser"
+            - type: "null"
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
 

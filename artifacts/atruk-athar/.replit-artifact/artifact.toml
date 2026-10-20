@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "اترك أثر"
+description = "منصة عربية للفيديوهات القصيرة تتيح مشاهدة مقاطع عمودية، مشاركة الفيديوهات، والتفاعل عبر الإعجابات والتعليقات والمتابعة."
+version = "1.0.0"
+id = "artifacts/atruk-athar"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24149
+
+[services.development]
+run = "pnpm --filter @workspace/atruk-athar run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/atruk-athar", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/atruk-athar/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24149"
+BASE_PATH = "/"
